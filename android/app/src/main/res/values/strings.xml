@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AI škola</string>
+    <string name="title_activity_main">AI škola</string>
+    <string name="package_name">sk.skai.skola</string>
+    <string name="custom_url_scheme">sk.skai.skola</string>
+</resources>

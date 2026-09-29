@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- Farby z palety AI škola (styles.css) -->
+    <color name="colorPrimary">#4F46E5</color>
+    <color name="colorPrimaryDark">#090C18</color>
+    <color name="colorAccent">#22D3EE</color>
+    <color name="background">#090C18</color>
+</resources>

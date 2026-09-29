@@ -1,0 +1,186 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: 9 12 24;
+    --bg-soft: 16 21 40;
+    --card: 20 26 48;
+    --border: 39 48 78;
+    --text: 226 232 240;
+    --muted: 148 163 184;
+    --accent: 99 102 241;
+    --accent-2: 34 211 238;
+    --ok: 52 211 153;
+    --bad: 248 113 113;
+  }
+
+  html.light {
+    --bg: 245 247 251;
+    --bg-soft: 255 255 255;
+    --card: 255 255 255;
+    --border: 214 222 240;
+    --text: 15 23 42;
+    --muted: 100 116 139;
+    --accent: 79 70 229;
+    --accent-2: 8 145 178;
+    --ok: 5 150 105;
+    --bad: 220 38 38;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Android: pohodlné dotykové ovládanie a bez „modrého“ flashu po ťuknutí */
+  body {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    overscroll-behavior-y: none;
+  }
+
+  button,
+  a,
+  label,
+  input,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  /* Bezpečné zóny pre výrez/notch a gesture bar */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  }
+
+  /* Na veľkých displejoch necháme app ako mobilnú kartu */
+  @media (min-width: 900px) {
+    body {
+      background-image: radial-gradient(circle at 20% 0%, rgb(var(--accent) / 0.12), transparent 45%),
+        radial-gradient(circle at 90% 10%, rgb(var(--accent-2) / 0.1), transparent 40%);
+    }
+  }
+
+  body {
+    @apply antialiased;
+    background-color: rgb(var(--bg));
+    color: rgb(var(--text));
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+  }
+
+  * {
+    border-color: rgb(var(--border));
+  }
+}
+
+@layer components {
+  .card {
+    background-color: rgb(var(--card));
+    border: 1px solid rgb(var(--border));
+    border-radius: 1rem;
+    @apply shadow-xl;
+  }
+
+  .muted {
+    color: rgb(var(--muted));
+  }
+
+  .accent {
+    color: rgb(var(--accent));
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2;
+    background-image: linear-gradient(
+      120deg,
+      rgb(var(--accent)),
+      rgb(var(--accent-2))
+    );
+    color: #fff;
+  }
+
+  .btn:hover:not(:disabled) {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+  }
+
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors;
+    background-color: transparent;
+    border-color: rgb(var(--border));
+    color: rgb(var(--text));
+  }
+
+  .btn-ghost:hover:not(:disabled) {
+    background-color: rgb(var(--bg-soft));
+  }
+
+  .btn-ghost:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .input {
+    @apply w-full rounded-xl border px-4 py-3 text-sm outline-none transition;
+    background-color: rgb(var(--bg-soft));
+    border-color: rgb(var(--border));
+    color: rgb(var(--text));
+  }
+
+  .input:focus {
+    border-color: rgb(var(--accent));
+    box-shadow: 0 0 0 3px rgb(var(--accent) / 0.25);
+  }
+
+  .chip {
+    @apply rounded-full border px-3 py-1 text-xs font-semibold;
+    border-color: rgb(var(--border));
+    color: rgb(var(--muted));
+  }
+
+  .option {
+    @apply flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left text-sm transition;
+    background-color: rgb(var(--bg-soft));
+    border-color: rgb(var(--border));
+  }
+
+  .option:hover:not(:disabled) {
+    border-color: rgb(var(--accent));
+  }
+
+  .option-ok {
+    border-color: rgb(var(--ok));
+    background-color: rgb(var(--ok) / 0.12);
+  }
+
+  .option-bad {
+    border-color: rgb(var(--bad));
+    background-color: rgb(var(--bad) / 0.12);
+  }
+
+  .prose p {
+    @apply mb-3 leading-relaxed;
+    color: rgb(var(--muted));
+  }
+
+  .prose strong {
+    color: rgb(var(--text));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
