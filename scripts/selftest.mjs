@@ -280,6 +280,7 @@ section('Regresie: hlasový modul a vyhodnotenie kvízu')
 
 const appSource = readFileSync(path.join(ROOT, 'src', 'App.tsx'), 'utf8')
 const ttsSource = readFileSync(path.join(ROOT, 'src', 'components', 'TextToSpeech.tsx'), 'utf8')
+const manifest = readFileSync(path.join(ROOT, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'), 'utf8')
 
 // (a) Hlasový modul sa nesmie schovať, keď systém neposkytuje syntézu reči.
 // V praxi to na telefóne znamenalo, že tlačidlá na čítanie úplne zmizli bez varovania.
@@ -300,6 +301,16 @@ check(
   /picked === current\.correct \? T\.answerRight/.test(appSource),
 )
 
+// (b) Android: Web Speech API v WebView chýba, preto musí ísť cez natívny plugin.
+check('TTS používa Capacitor natívny hlas', ttsSource.includes('NativeTTS.speak'))
+check('TTS deteguje natívnu platformu', ttsSource.includes('Capacitor.isNativePlatform'))
+check('TTS zisťuje, či je slovenský hlas', ttsSource.includes('isLanguageSupported'))
+check('Android manifest žiada TTS službu', manifest.includes('android.intent.action.TTS_SERVICE'))
+check(
+  'pause sa na Androide nesnaží o window.speechSynthesis',
+  /if \(native\) \{\s*\n\s*stop\(\)/.test(ttsSource),
+)
+
 // (c) Denná výzva musí po stlačení tlačidla dať viditeľnú odozvu.
 check(
   'denná výzva zobrazuje potvrdenie „Hotovo!“',
@@ -310,18 +321,19 @@ check(
   /onClick=\{\(\) => onComplete\(task\.id\)\}/.test(appSource),
 )
 
-// (d) Preklep v názve úrovne sa nesmie vrátiť do textu.
-// Samotný selftest obsahuje toto slovo ako vzor, preto sa z výsledku vylúči.
+// (d) Názov úrovne musí byť všade rovnaký.
+// Autori kurz si zvolili tvar „začiatočník“ – test teda hlída, aby sa
+// niekde nevrátila pôvodná podoba „začiatkár“ a nebola nejednotná.
 // git grep vrací cesty vždy s lomítkami, preto porovnávame nadol string.
 const SELF = 'scripts/selftest.mjs'
-const badWord = trackedWith('začatočník|začatočník')
+const oldWord = trackedWith('začiatkár|začiatocnik')
   .split('\n')
   .filter((f) => f && f !== SELF)
   .join('\n')
-check('žiadny preklep „začiatočník“ v repozitári', badWord === '', badWord.split('\n').slice(0, 3).join(', '))
+check('názov úrovne je všade jednotne „začiatočník“', oldWord === '', oldWord.split('\n').slice(0, 3).join(', '))
 check(
-  'správny tvar „Začiatkár“ je v texte',
-  appSource.includes('Začiatkár') && !appSource.includes('začiatočník'),
+  'úroveň sa v UI volá „Začiatočník“',
+  appSource.includes("levelBeginner: t(['Začiatočník'") && !/Začiatkár|začiatkár/.test(appSource),
 )
 
 

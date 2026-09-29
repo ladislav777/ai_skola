@@ -145,7 +145,7 @@ const T = {
   of: t(['z', 'of']),
   points: t(['bodov', 'points']),
   recommendedLevel: t(['Odporúčaná úroveň', 'Recommended level']),
-  levelBeginner: t(['Začiatkár', 'Beginner']),
+  levelBeginner: t(['Začiatočník', 'Beginner']),
   levelIntermediate: t(['Pokročilý', 'Intermediate']),
   levelAdvanced: t(['Expert', 'Expert']),
   levelBeginnerDesc: t([

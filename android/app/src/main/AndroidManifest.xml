@@ -38,4 +38,15 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+        Android 11+ nedovolí aplikácii nájsť systémovú službu prevodu textu na reč,
+        pokiaľ ju výslovne nevyžiada. Bez tohto bloku by hlasový modul v APK
+        nefungoval, aj keď je na zariadení slovenský hlas nainštalovaný.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
 </manifest>

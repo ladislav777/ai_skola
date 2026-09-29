@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
+import { TextToSpeech as NativeTTS, QueueStrategy } from '@capacitor-community/text-to-speech'
 
 /**
  * Offline hovorená verzia textu.
- * Využíva výhradne natívne Web Speech API (window.speechSynthesis):
- * žiadne knižnice, žiadne sieťové požiadavky, žiadne kľúče.
- * Ak systém TTS nepodporuje, zostane viditeľná značka s vysvetlením.
+ *
+ * Na počítači a v prehliadači používame natívne Web Speech API
+ * (window.speechSynthesis) – žiadne knižnice, žiadne sieťové požiadavky.
+ *
+ * V aplikácii pre Android je Web Speech API nedostupné (WebView ho neposkytuje
+ * spoľahlivo), preto používame natívny systémový TTS cez Capacitor plugin.
+ * Oboje je offline a bez kľúčov – hlas berie zo zariadenia.
  */
 
 type SpeechState = 'idle' | 'speaking' | 'paused'
@@ -27,6 +33,12 @@ const UNSUPPORTED_TITLE_SK =
   'Tento prehliadač nepodporuje syntézu reči. Nainštalujte si hlas v Nastaveniach systému (Slovensko) a stránku obnovte.'
 const UNSUPPORTED_TITLE_EN =
   'This browser does not support speech synthesis. Install a system voice and reload.'
+
+/** Vysvetlenie pre značku, keď systém hlas má, ale chýba slovenský hlas. */
+const NO_SLOVAK_TITLE_SK =
+  'Zariadenie nemá slovenský hlas. Nastavenia → Systém → Jazyky a vstup → Prevod textu na reč → nainštalujte slovenský hlas.'
+const NO_SLOVAK_TITLE_EN =
+  'No Slovak voice installed. Install it in Settings → System → Languages → Text-to-speech output.'
 
 /**
  * Dvojfázové delenie textu na úseky vhodné pre prehrávanie.
@@ -79,7 +91,17 @@ export function splitForSpeech(text: string): string[] {
   return chunks
 }
 
+/** Bežíme v natívnej aplikácii (Android), kde Web Speech API chýba. */
+function isNativeApp(): boolean {
+  try {
+    return Capacitor.isNativePlatform()
+  } catch {
+    return false
+  }
+}
+
 function isSupported(): boolean {
+  if (isNativeApp()) return true
   return typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window
 }
 
@@ -113,7 +135,10 @@ export default function TextToSpeech({ text, label = 'Prečítať nahlas', varia
   const [rate, setRate] = useState<number>(1)
   const [voiceName, setVoiceName] = useState<string>('')
   // Podporu zisťujeme hneď – na zariadení bez TTS tlačidlá nesmú ani bliknúť.
+  const [native] = useState<boolean>(isNativeApp)
   const [supported] = useState<boolean>(isSupported)
+  /** V natívnej aplikácii nevieme zistiť, či je slovenský hlas nainštalovaný. */
+  const [missingSlovak, setMissingSlovak] = useState<boolean>(false)
 
   /** Aktuálne načítané hlasy (naplní sa asynchrone cez onvoiceschanged). */
   const voicesRef = useRef<SpeechSynthesisVoice[]>([])
@@ -126,9 +151,31 @@ export default function TextToSpeech({ text, label = 'Prečítať nahlas', varia
 
   rateRef.current = rate
 
+  /* ------------------------------------------- natívny hlas (Android) -- */
+  useEffect(() => {
+    if (!native) return
+    // Zisťujeme, či zariadenie pozná slovenský hlas. Ak nie, povieme používateľovi
+    // presne čo má nainštalovať, namiesto tichej hlášky „niečo nefunguje“.
+    let cancelled = false
+    const probe = async () => {
+      try {
+        const { supported: sk } = await NativeTTS.isLanguageSupported({ lang: LANG })
+        if (cancelled) return
+        setMissingSlovak(!sk)
+        if (sk) setVoiceName('slovenský hlas zariadenia')
+      } catch {
+        /* zariadenie nemá TTS vôbec – zobrazí sa značka 🔇 */
+      }
+    }
+    void probe()
+    return () => {
+      cancelled = true
+    }
+  }, [native])
+
   /* ---------------------------------------------- načítanie hlasov (async) -- */
   useEffect(() => {
-    if (!supported) return
+    if (!supported || native) return
 
     const refresh = () => {
       const voices = window.speechSynthesis.getVoices()
@@ -153,7 +200,7 @@ export default function TextToSpeech({ text, label = 'Prečítať nahlas', varia
       synth.removeEventListener('voiceschanged', refresh)
       pollStop()
     }
-  }, [supported])
+  }, [supported, native])
 
   /* ----------------------------------------------- zastavenie a čistenie -- */
   /** Zruší front aj všetky čakajúce timeorty (aby nič neviselo v pamäti). */
@@ -166,9 +213,14 @@ export default function TextToSpeech({ text, label = 'Prečítať nahlas', varia
     if (!isSupported()) return
     tokenRef.current += 1
     clearTimers()
-    window.speechSynthesis.cancel()
+    if (native) {
+      // Natívny TTS nemá „pause“, preto tlačidlo ⏸ proste zastaví prehrávanie.
+      void NativeTTS.stop().catch(() => undefined)
+    } else {
+      window.speechSynthesis.cancel()
+    }
     setState('idle')
-  }, [clearTimers])
+  }, [clearTimers, native])
 
   // Odchod z obrazovky alebo zmena textu → vždy zastavíme a vyčistíme.
   useEffect(() => stop, [stop, text])
@@ -180,11 +232,33 @@ export default function TextToSpeech({ text, label = 'Prečítať nahlas', varia
     (startIndex: number) => {
       if (!isSupported() || chunks.length === 0) return
 
-      window.speechSynthesis.cancel()
-      clearTimers()
-
       const token = tokenRef.current + 1
       tokenRef.current = token
+      clearTimers()
+
+      /* --- Android: celý text pošleme naraz systémovému TTS --- */
+      if (native) {
+        // Systémový TTS nemá 15-sekundový limit Chrome, preto netreba deliť
+        // text na úseky a riešiť ich medzi sebou.
+        const full = chunks.join(' ')
+        setState('speaking')
+        void NativeTTS.speak({
+          text: full,
+          lang: LANG,
+          rate: rateRef.current,
+          pitch: 1,
+          queueStrategy: QueueStrategy.Flush,
+        })
+          .then(() => {
+            if (tokenRef.current === token) setState('idle')
+          })
+          .catch(() => {
+            if (tokenRef.current === token) setState('idle')
+          })
+        return
+      }
+
+      window.speechSynthesis.cancel()
 
       // Hlas čítame až teraz – medzi tým mohol byť načítaný.
       const voice = pickVoice(voicesRef.current)
@@ -225,25 +299,31 @@ export default function TextToSpeech({ text, label = 'Prečítať nahlas', varia
       setState('speaking')
       speakChunk(startChunk)
     },
-    [chunks, clearTimers],
+    [chunks, clearTimers, native],
   )
 
 
   const play = useCallback(() => {
     if (!isSupported() || chunks.length === 0) return
-    if (state === 'paused') {
+    if (!native && state === 'paused') {
       window.speechSynthesis.resume()
       setState('speaking')
       return
     }
     speakFrom(0)
-  }, [chunks.length, speakFrom, state])
+  }, [chunks.length, speakFrom, state, native])
 
   const pause = useCallback(() => {
     if (!isSupported() || state !== 'speaking') return
+    // Android TTS nepodporuje pauzu v polovici vety – tlačidlo ho zastaví
+    // a opätovné stlačenie 🔊 rozbehne text od začiatku.
+    if (native) {
+      stop()
+      return
+    }
     window.speechSynthesis.pause()
     setState('paused')
-  }, [state])
+  }, [state, native, stop])
 
   const changeRate = useCallback(
     (next: number) => {
@@ -274,6 +354,20 @@ export default function TextToSpeech({ text, label = 'Prečítať nahlas', varia
         title={sk ? UNSUPPORTED_TITLE_SK : UNSUPPORTED_TITLE_EN}
       >
         {sk ? '🔇 Hlas nedostupný' : '🔇 Voice unavailable'}
+      </span>
+    )
+  }
+
+  // TTS funguje, ale zariadenie nemá slovenský hlas. Bez upozornenia by
+  // aplikácia čítala po anglicky a nikto by nevedel prečo.
+  if (native && missingSlovak) {
+    const sk = !label.startsWith('Read')
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-xs text-amber-400/90"
+        title={sk ? NO_SLOVAK_TITLE_SK : NO_SLOVAK_TITLE_EN}
+      >
+        {sk ? '⚠️ Chýba slovenský hlas' : '⚠️ No Slovak voice'}
       </span>
     )
   }
