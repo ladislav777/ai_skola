@@ -12,8 +12,10 @@
  * esbuild (závislosť Vite) ju zbundluje do dočasného súboru, ktorý načítame.
  */
 import { build } from 'esbuild'
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { userInfo } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -223,6 +225,55 @@ check(
   'žiadny preklad nemá prázdny jazyk',
   translations.every((p) => valid(p) && p.every((x) => isQuoted(x) && x.slice(1, -1).trim().length > 0)),
 )
+
+/* --------------------------------- 6. hygiena pred zverejnením (verejný repo) -- */
+section('Hygiena verejného repozitára')
+
+const gitignore = readFileSync(path.join(ROOT, '.gitignore'), 'utf8')
+for (const ignored of ['node_modules', 'dist', '*.apk', 'android/local.properties', 'android/app/build', '.env']) {
+  check(`ignoruje sa ${ignored}`, gitignore.includes(ignored))
+}
+
+/** Vráti zoznam súborov, ktoré obsahujú daný vzor (git grep -l). */
+function trackedWith(pattern) {
+  try {
+    return execFileSync('git', ['grep', '-I', '-l', '-i', '-e', pattern], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Rizikom pri zverejnení nie je samotné meno (2-znakové mená ako „HP“ by
+ * matchovali aj výrazy ako *.hprof), ale cesta domovského priečinka.
+ * Preto hľadáme presne tvar Users\<meno> – ten je jednoznačný.
+ */
+const OS_USER = userInfo().username
+const GENERIC_USERS = /^(system|container|root|user|administrator|runneradmin|default)$/i
+
+if (!OS_USER || GENERIC_USERS.test(OS_USER)) {
+  check('kontrola cesty domovského priečinka sa preskočila', true, `generické prostredie (${OS_USER})`)
+} else {
+  // Tvar Users\<meno> je jednoznačný aj pre 2-znakové meno – na rozdiel od
+  // hľadania samotného mena, ktoré by matchovalo napr. „*.hprof“ alebo „splashPng“.
+  const homeRefs = trackedWith(`Users\\\\${OS_USER}`)
+  check(
+    `cesta C:\\Users\\${OS_USER} neuniká do repozitára`,
+    homeRefs === '',
+    homeRefs.split('\n').slice(0, 3).join(', '),
+  )
+}
+
+// Cesty na Android SDK obsahujú domovský priečinok používateľa.
+const sdkPaths = trackedWith('Android\\\\Sdk')
+check('žiadne cesty na Android SDK vo verzovaných súboroch', sdkPaths === '', sdkPaths.split('\n').slice(0, 3).join(', '))
+
+
+
 
 rmSync(tmp, { recursive: true, force: true })
 
