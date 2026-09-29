@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
+import TextToSpeech, { stopAllSpeech } from './components/TextToSpeech'
 
 /* ============================================================================
  * AI Masterclass – navigácia, onboarding, moduly, kvízy a aplikácia
@@ -2036,6 +2037,30 @@ function levelName(level: Level): L {
   return level === 'advanced' ? T.levelAdvanced : level === 'intermediate' ? T.levelIntermediate : T.levelBeginner
 }
 
+/** Text jednej sekcie modulu pripravený na čítanie. */
+function sectionText(section: ModuleSection, locale: Locale): string {
+  const parts = [section.heading[locale], ...section.body.map((p) => p[locale])]
+  if (section.tips) parts.push(...section.tips.map((tip) => tip[locale]))
+  return parts.join('. ')
+}
+
+/** Celý modul (názov + všetky sekcie) pripravený na čítanie. */
+function moduleLessonText(mod: Module, locale: Locale): string {
+  return [mod.title[locale], mod.subtitle[locale], ...mod.sections.map((s) => sectionText(s, locale))].join('. ')
+}
+
+/** Celá prípadová štúdia pripravená na čítanie. */
+function caseStudyText(c: CaseStudy, locale: Locale): string {
+  return [
+    c.title[locale],
+    c.situation[locale],
+    c.bad[locale],
+    c.good[locale],
+    ...c.steps.map((s) => s[locale]),
+    c.takeaway[locale],
+  ].join('. ')
+}
+
 function Onboarding({
   locale,
   onComplete,
@@ -2338,10 +2363,24 @@ function ModuleDetail({
         <h1 className="text-2xl font-bold sm:text-3xl">{mod.title[locale]}</h1>
         <p className="mt-1 muted">{mod.subtitle[locale]}</p>
 
+        <div className="mt-4">
+          <TextToSpeech
+            text={moduleLessonText(mod, locale)}
+            label={`${locale === 'sk' ? 'Prečítať celý modul' : 'Read the whole module'}: ${mod.title[locale]}`}
+          />
+        </div>
+
         <div className="mt-7 space-y-7">
           {mod.sections.map((s) => (
             <section key={s.heading[locale]}>
-              <h2 className="text-lg font-semibold accent">{s.heading[locale]}</h2>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-lg font-semibold accent">{s.heading[locale]}</h2>
+                <TextToSpeech
+                  variant="inline"
+                  text={sectionText(s, locale)}
+                  label={`${locale === 'sk' ? 'Prečítať sekciu' : 'Read section'}: ${s.heading[locale]}`}
+                />
+              </div>
               <div className="prose mt-2 text-sm">
                 {s.body.map((p, i) => (
                   <p key={i}>{p[locale]}</p>
@@ -2488,21 +2527,33 @@ function Playground({
           <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="card p-5">
             <h2 className="font-semibold">{T.pgFixTitle[locale]}</h2>
             <pre className="mt-3 whitespace-pre-wrap break-words rounded-xl border px-4 py-3 text-sm">{result.improved}</pre>
-            <button
-              className="btn mt-3"
-              onClick={() => {
-                setPrompt(result.improved)
-                setResult(analyzePrompt(result.improved, locale))
-              }}
-            >
-              {T.pgUseFix[locale]}
-            </button>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                className="btn"
+                onClick={() => {
+                  setPrompt(result.improved)
+                  setResult(analyzePrompt(result.improved, locale))
+                }}
+              >
+                {T.pgUseFix[locale]}
+              </button>
+              <TextToSpeech
+                text={result.improved}
+                label={locale === 'sk' ? 'Prečítať vylepšený prompt' : 'Read improved prompt'}
+              />
+            </div>
           </motion.section>
 
           <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="card p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-semibold">{T.pgSimulation[locale]}</h2>
-              <span className="chip">{T.pgSimulated[locale]}</span>
+              <span className="flex items-center gap-2">
+                <TextToSpeech
+                  text={result.simulated}
+                  label={locale === 'sk' ? 'Prečítať odpoveď' : 'Read the answer'}
+                />
+                <span className="chip">{T.pgSimulated[locale]}</span>
+              </span>
             </div>
             <pre className="mt-3 whitespace-pre-wrap break-words text-sm leading-relaxed">{result.simulated}</pre>
             <p className="mt-3 text-xs muted">{T.pgSimulationNote[locale]}</p>
@@ -2593,10 +2644,19 @@ function CompareView({ locale }: { locale: Locale }) {
               </button>
             )}
             {show.weak && (
-              <p className="mt-3 border-t pt-3 text-xs muted">
-                <strong>{T.cmpOutcome[locale]}: </strong>
-                {task.outcomeWeak[locale]}
-              </p>
+              <div className="mt-3 border-t pt-3">
+                <p className="text-xs muted">
+                  <strong>{T.cmpOutcome[locale]}: </strong>
+                  {task.outcomeWeak[locale]}
+                </p>
+                <div className="mt-2">
+                  <TextToSpeech
+                    variant="inline"
+                    text={`${task.weak[locale]} ${task.outcomeWeak[locale]}`}
+                    label={`${locale === 'sk' ? 'Prečítať slabý prompt' : 'Read weak prompt'}`}
+                  />
+                </div>
+              </div>
             )}
           </div>
 
@@ -2612,10 +2672,19 @@ function CompareView({ locale }: { locale: Locale }) {
               </button>
             )}
             {show.good && (
-              <p className="mt-3 border-t pt-3 text-xs muted">
-                <strong>{T.cmpOutcome[locale]}: </strong>
-                {task.outcomeGood[locale]}
-              </p>
+              <div className="mt-3 border-t pt-3">
+                <p className="text-xs muted">
+                  <strong>{T.cmpOutcome[locale]}: </strong>
+                  {task.outcomeGood[locale]}
+                </p>
+                <div className="mt-2">
+                  <TextToSpeech
+                    variant="inline"
+                    text={`${task.good[locale]} ${task.outcomeGood[locale]}`}
+                    label={locale === 'sk' ? 'Prečítať dobrý prompt' : 'Read good prompt'}
+                  />
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -2683,7 +2752,14 @@ function CasesView({
               <div className="flex items-start gap-3">
                 <span className="text-3xl">{c.icon}</span>
                 <div className="flex-1">
-                  <h2 className="font-semibold">{c.title[locale]}</h2>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="font-semibold">{c.title[locale]}</h2>
+                    <TextToSpeech
+                      variant="inline"
+                      text={caseStudyText(c, locale)}
+                      label={`${locale === 'sk' ? 'Prečítať štúdiu' : 'Read case study'}: ${c.title[locale]}`}
+                    />
+                  </div>
                   <p className="mt-1 text-sm muted">{c.situation[locale]}</p>
                 </div>
                 {isRead && <span className="chip accent border-current">✓</span>}
@@ -2762,6 +2838,13 @@ function ChallengeView({
         </div>
 
         <p className="mt-5 text-lg leading-relaxed">{task.task[locale]}</p>
+
+        <div className="mt-3">
+          <TextToSpeech
+            text={`${task.title[locale]}. ${task.task[locale]} ${task.hint[locale]}`}
+            label={locale === 'sk' ? 'Prečítať dnešnú výzvu' : "Read today's challenge"}
+          />
+        </div>
 
         <p className="mt-4 rounded-xl border px-4 py-3 text-sm muted">
           <strong>{T.chHint[locale]}: </strong>
@@ -2878,6 +2961,8 @@ export default function App() {
 
   useEffect(() => {
     window.scrollTo({ top: 0 })
+    // pri zmene obrazovky sa hovorené prehrávanie vždy zastaví
+    stopAllSpeech()
   }, [view, activeModule])
 
   function openModule(id: string) {

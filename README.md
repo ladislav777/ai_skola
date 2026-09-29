@@ -23,6 +23,7 @@ Interaktívny slovenský kurz (s prepínačom EN/SK), ktorý učí **písať pro
 
 - **Vstupný kvíz** – 5 otázok, odporúčanie úrovne (začiatkár / pokročilý / expert)
 - **6 modulov** s postupným odomykaním, minikvízmi a XP systémom
+- **Hovorená verzia (TTS)** – natívne Web Speech API, offline, slovenský hlas, 4 rýchlosti
 - **Prompt laboratórium** – *vlastná offline logika*, ktorá rozloží prompt na 5 kritérií
   (rola, kontext, formát, dôkazy, publikum), dá skóre 0–5, vygeneruje vylepšený prompt
   a ukáže simulovanú odpoveď so správnou štruktúrou
@@ -68,7 +69,20 @@ Projekt balí Capacitor 7, ktorý predpokladá `compileSdk 36`. Riešenie pre be
 - vylúčenie `kotlin-stdlib-jdk7/jdk8` v `android/build.gradle` (duplicitné triedy
   `kotlin.collections.jdk8.CollectionsJDK8Kt` po spojení stdlib 1.8.22 + jdk7/8 1.6.21)
 
-### 5. Android UI detaily
+### 5. Hovorená verzia bez závislostí
+TTS je `src/components/TextToSpeech.tsx` – čisto `window.speechSynthesis`, žiadne CDN ani
+balíčky. Dve veci, ktoré treba vedieť:
+
+- **Delenie textu na vety** – Chrome ukončí `speechSynthesis` po ~15 s. Text sa preto
+  rozreže na vety (max ~220 znakov) a prehráva sa ako fronta utterance.
+- **Tokeny proti zápasom** – pri rýchlom kliknutí alebo zmene obrazovky sa `speak()`
+  volá po sebe a staré `onend` callbacky by zapísali do už neplatného stavu.
+  Preto každé volanie dostane vlastný token a callbacky si ho overia.
+
+Hlas: `sk-SK` (priblíži sa aj `sk-*`, potom `cs`, `en`). Na zariadení bez TTS
+sa komponent vôbec nerenderuje – žiadne mŕtve tlačidlá.
+
+### 6. Android UI detaily
 `viewport-fit=cover` + `env(safe-area-inset-*)` pre notch a gesture bar,
 `theme-color` pre status bar, `-webkit-tap-highlight-color: transparent`,
 launcher skratky cez `?view=` parametr v URL.

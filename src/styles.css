@@ -48,6 +48,46 @@
     touch-action: manipulation;
   }
 
+  /* Hovorená verzia (Web Speech API) */
+  .tts-btn {
+    @apply inline-flex h-7 w-7 items-center justify-center rounded-lg border text-xs transition;
+    background-color: rgb(var(--bg-soft));
+    border-color: rgb(var(--border));
+    color: rgb(var(--text));
+  }
+
+  .tts-btn:hover:not(:disabled) {
+    border-color: rgb(var(--accent));
+  }
+
+  .tts-btn:disabled {
+    opacity: 0.4;
+  }
+
+  /* aktívny stav – jemný pulz, nič rušivého */
+  @keyframes tts-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgb(var(--accent) / 0.55);
+      border-color: rgb(var(--accent));
+    }
+    50% {
+      box-shadow: 0 0 0 6px rgb(var(--accent) / 0);
+      border-color: rgb(var(--accent-2));
+    }
+  }
+
+  .tts-active {
+    animation: tts-pulse 1.4s ease-in-out infinite;
+    border-color: rgb(var(--accent)) !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tts-active {
+      animation: none;
+    }
+  }
+
   /* Bezpečné zóny pre výrez/notch a gesture bar */
   .safe-top {
     padding-top: env(safe-area-inset-top);
