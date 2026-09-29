@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 /**
  * Offline hovorená verzia textu.
@@ -14,34 +14,62 @@ const RATES = [0.9, 1, 1.25, 1.5] as const
 
 /** Jazyk hlasu – primárne slovenský. */
 const LANG = 'sk-SK'
-const FALLBACK_LANGS = ['sk', 'cs', 'en-US', 'en']
+/** Poradie hľadania hlasu, ak nie je dostupný sk-SK. */
+const FALLBACK_LANGS = ['sk-SK', 'sk', 'cs-CZ', 'cs', 'en-US', 'en']
+
+/** Hranica, pri ktorej delíme po interpunkcii. */
+const SENTENCE_LIMIT = 150
+/** Horná hranica pre úsek po delení po slovách. */
+const WORD_LIMIT = 120
 
 /**
- * Chrome ukončí prednášanie po ~15 s. Preto text delíme na vety
- * a prehrávame ich postupne – inak by ste počuli len prvých 15 sekúnd.
+ * Dvojfázové delenie textu na úseky vhodné pre prehrávanie.
+ *
+ * Fáza 1 – delenie podľa interpunkcie (. ! ? ; : … a nový riadok).
+ *          Celé vety nechávame intactné, aby neboli roztrhané v polovici.
+ * Fáza 2 – ak je úsek po interpunkcii stále dlhší ako SENTENCE_LIMIT,
+ *          delíme ho po slovách na úseky s dĺžkou približne WORD_LIMIT.
+ *
+ * Chrome má známy timeout ~15 s, po ktorom speechSynthesis ticho zastaví
+ * prehrávanie. Krátke úseky sa na tomto limite nepretrhnú.
  */
-function splitForSpeech(text: string, maxLen = 220): string[] {
+export function splitForSpeech(text: string): string[] {
   const clean = text.replace(/\s+/g, ' ').trim()
   if (!clean) return []
 
-  const sentences = clean.match(/[^.!?…]+[.!?…]*\s*/g) ?? [clean]
-  const chunks: string[] = []
-  let current = ''
+  // ── Fáza 1: delenie po interpunkcii (interpunkcia ostáva v úseku) ──
+  const sentences = clean.match(/[^.!?…;:\n]+[.!?…;:\n]*\s*/g) ?? [clean]
 
+  // ── Fáza 2: prípadné sekundárne delenie po slovách ──
+  const chunks: string[] = []
   for (const sentence of sentences) {
-    if ((current + sentence).length > maxLen && current.trim()) {
-      chunks.push(current.trim())
-      current = sentence
-    } else {
-      current += sentence
+    const trimmed = sentence.trim()
+    if (!trimmed) continue
+
+    if (trimmed.length <= SENTENCE_LIMIT) {
+      chunks.push(trimmed)
+      continue
     }
-    // jedna obrovská veta bez bodiek → rozrežeme
-    while (current.length > maxLen * 1.6) {
-      chunks.push(current.slice(0, maxLen).trim())
-      current = current.slice(maxLen)
+
+    // rozrežeme po slovách, pričom každý úsek približne dodržíme WORD_LIMIT
+    const words = trimmed.split(/\s+/)
+    let buffer = ''
+    for (const word of words) {
+      if (buffer.length + word.length + 1 <= WORD_LIMIT) {
+        buffer += (buffer ? ' ' : '') + word
+      } else {
+        if (buffer) chunks.push(buffer)
+        buffer = word
+      }
+      // jeden slovo absurdne dlhé (napr. base64) – rozrežeme ako poslednú rezervu
+      while (buffer.length > WORD_LIMIT) {
+        chunks.push(buffer.slice(0, WORD_LIMIT).trim())
+        buffer = buffer.slice(WORD_LIMIT)
+      }
     }
+    if (buffer) chunks.push(buffer)
   }
-  if (current.trim()) chunks.push(current.trim())
+
   return chunks
 }
 
@@ -49,18 +77,21 @@ function isSupported(): boolean {
   return typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window
 }
 
-/** Vyberie slovenský hlas, inak prvý dostupný podľa jazyka. */
-function pickVoice(): SpeechSynthesisVoice | null {
-  if (!isSupported()) return null
-  const voices = window.speechSynthesis.getVoices()
+/**
+ * Vyberie najvhodnejší hlas z dostupných.
+ * android WebView často vracia prázdne pole, preto je vstup voliteľný
+ * a hlas sa môže načítať neskôr cez onvoiceschanged.
+ */
+function pickVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
   if (voices.length === 0) return null
-
-  const normalized = (v: SpeechSynthesisVoice) => v.lang.toLowerCase().replace('_', '-')
-  const byLang = FALLBACK_LANGS.map((lang) => voices.find((v) => normalized(v) === lang.toLowerCase())).find(
-    Boolean,
-  )
-  return voices.find((v) => normalized(v) === 'sk-sk') ?? voices.find((v) => normalized(v).startsWith('sk')) ?? byLang ?? voices[0]
+  const norm = (v: SpeechSynthesisVoice) => v.lang.toLowerCase().replace('_', '-')
+  for (const lang of FALLBACK_LANGS) {
+    const found = voices.find((v) => norm(v) === lang.toLowerCase())
+    if (found) return found
+  }
+  return voices[0] ?? null
 }
+
 
 interface Props {
   /** Text, ktorý sa má prečítať. */
@@ -78,73 +109,119 @@ export default function TextToSpeech({ text, label = 'Prečítať nahlas', varia
   // Podporu zisťujeme hneď – na zariadení bez TTS tlačidlá nesmú ani bliknúť.
   const [supported] = useState<boolean>(isSupported)
 
-  const indexRef = useRef(0)
+  /** Aktuálne načítané hlasy (naplní sa asynchrone cez onvoiceschanged). */
+  const voicesRef = useRef<SpeechSynthesisVoice[]>([])
+  /** Rýchlosť čítania – ref, aby sa callbacky nemuseli re-kreovať. */
   const rateRef = useRef(rate)
+  /** Identifikátor „behu“ prehrávania; staré callbacky sa ním overia a zahodia. */
   const tokenRef = useRef(0)
+  /** Timeouty po dokončení úseku – ukladáme ich, aby sme ich vedeli zrušiť. */
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
   rateRef.current = rate
 
-  // Načítanie hlasov (Android ich sprístupňuje oneskoro)
+  /* ---------------------------------------------- načítanie hlasov (async) -- */
   useEffect(() => {
     if (!supported) return
+
     const refresh = () => {
-      const voice = pickVoice()
+      const voices = window.speechSynthesis.getVoices()
+      voicesRef.current = voices
+      const voice = pickVoice(voices)
       setVoiceName(voice ? `${voice.name} (${voice.lang})` : '')
     }
+
     refresh()
-    window.speechSynthesis.addEventListener('voiceschanged', refresh)
-    return () => window.speechSynthesis.removeEventListener('voiceschanged', refresh)
+
+    // Android WebView načítava hlasy oneskoro – čakáme na udalosť.
+    const synth = window.speechSynthesis
+    synth.addEventListener('voiceschanged', refresh)
+
+    // Poistka pre prehliadače, ktoré event nevyvolajú.
+    const poll = setInterval(() => {
+      if (voicesRef.current.length === 0) refresh()
+    }, 500)
+    const pollStop = clearInterval.bind(null, poll)
+
+    return () => {
+      synth.removeEventListener('voiceschanged', refresh)
+      pollStop()
+    }
   }, [supported])
+
+  /* ----------------------------------------------- zastavenie a čistenie -- */
+  /** Zruší front aj všetky čakajúce timeorty (aby nič neviselo v pamäti). */
+  const clearTimers = useCallback(() => {
+    for (const timer of timersRef.current) clearTimeout(timer)
+    timersRef.current = []
+  }, [])
 
   const stop = useCallback(() => {
     if (!isSupported()) return
     tokenRef.current += 1
+    clearTimers()
     window.speechSynthesis.cancel()
     setState('idle')
-  }, [])
+  }, [clearTimers])
 
-  // Zastaví prehrávanie pri odchode z obrazovky aj pri zmene textu
+  // Odchod z obrazovky alebo zmena textu → vždy zastavíme a vyčistíme.
   useEffect(() => stop, [stop, text])
 
-  const chunks = splitForSpeech(text)
+  const chunks = useMemo(() => splitForSpeech(text), [text])
 
+  /* ---------------------------------------------------------- prehrávanie -- */
   const speakFrom = useCallback(
     (startIndex: number) => {
       if (!isSupported() || chunks.length === 0) return
 
       window.speechSynthesis.cancel()
+      clearTimers()
+
       const token = tokenRef.current + 1
       tokenRef.current = token
 
-      const voice = pickVoice()
-      const startChunk = Math.min(startIndex, chunks.length - 1)
+      // Hlas čítame až teraz – medzi tým mohol byť načítaný.
+      const voice = pickVoice(voicesRef.current)
+      const lang = voice?.lang ?? LANG
+      const startChunk = Math.max(0, Math.min(startIndex, chunks.length - 1))
 
-      for (let i = startChunk; i < chunks.length; i++) {
+      // Prehrávame úseky postupne: ďalší sa začne až po onend predchádzajúceho.
+      const speakChunk = (i: number) => {
         if (tokenRef.current !== token) return
+
+        if (i >= chunks.length) {
+          setState('idle')
+          return
+        }
+
         const utterance = new SpeechSynthesisUtterance(chunks[i])
-        utterance.lang = voice?.lang ?? LANG
+        utterance.lang = lang
         utterance.rate = rateRef.current
         if (voice) utterance.voice = voice
 
         utterance.onend = () => {
           if (tokenRef.current !== token) return
-          if (i === chunks.length - 1) {
-            setState('idle')
-            indexRef.current = 0
-          }
+          // Chrome občas nevyvolá onend okamžite – dáme mu malú rezervu.
+          const timer = setTimeout(() => speakChunk(i + 1), 0)
+          timersRef.current.push(timer)
         }
+
         utterance.onerror = (event) => {
           if (tokenRef.current !== token) return
+          clearTimers()
           // prerušenie používateľom nie je chyba
           if (event.error !== 'canceled' && event.error !== 'interrupted') setState('idle')
         }
+
         window.speechSynthesis.speak(utterance)
       }
+
       setState('speaking')
+      speakChunk(startChunk)
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [text],
+    [chunks, clearTimers],
   )
+
 
   const play = useCallback(() => {
     if (!isSupported() || chunks.length === 0) return
@@ -153,7 +230,6 @@ export default function TextToSpeech({ text, label = 'Prečítať nahlas', varia
       setState('speaking')
       return
     }
-    indexRef.current = 0
     speakFrom(0)
   }, [chunks.length, speakFrom, state])
 
@@ -167,13 +243,14 @@ export default function TextToSpeech({ text, label = 'Prečítať nahlas', varia
     (next: number) => {
       setRate(next)
       rateRef.current = next
-      // zmena rýchlosti počas prehrávania = začneme odznova
+      // zmena rýchlosti počas prehrávania = spustíme front odznova s novou rýchlosťou
       if (state !== 'idle') {
-        indexRef.current = 0
-        setTimeout(() => speakFrom(0), 60)
+        clearTimers()
+        const timer = setTimeout(() => speakFrom(0), 60)
+        timersRef.current.push(timer)
       }
     },
-    [speakFrom, state],
+    [speakFrom, state, clearTimers],
   )
 
   // Systém bez TTS alebo prázdny text → tlačidlá vôbec nezobrazujeme

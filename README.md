@@ -71,18 +71,27 @@ Projekt balí Capacitor 7, ktorý predpokladá `compileSdk 36`. Riešenie pre be
 
 ### 5. Hovorená verzia bez závislostí
 TTS je `src/components/TextToSpeech.tsx` – čisto `window.speechSynthesis`, žiadne CDN ani
-balíčky. Dve veci, ktoré treba vedieť:
+balíčky. Tri veci, ktoré treba vedieť:
 
-- **Delenie textu na vety** – Chrome ukončí `speechSynthesis` po ~15 s. Text sa preto
-  rozreže na vety (max ~220 znakov) a prehráva sa ako fronta utterance.
-- **Tokeny proti zápasom** – pri rýchlom kliknutí alebo zmene obrazovky sa `speak()`
-  volá po sebe a staré `onend` callbacky by zapísali do už neplatného stavu.
-  Preto každé volanie dostane vlastný token a callbacky si ho overia.
+- **Dvojfázové delenie textu.** Chrome ticho zastaví `speechSynthesis` po ~15 s.
+  Preto text najprv delíme podľa interpunkcie (`.` `!` `?` `;` `:` `…` nový riadok) a úseky
+  dlhšie ako 150 znakov sekundárne po slovách na úseky max ~120 znakov. Bez toho by sa
+  prehrávanie seknulo uprostred vety.
+- **Asynchrónne hlasy.** Android WebView vracia `getVoices()` ako prázdne pole, preto
+  hlasy načítavame cez `voiceschanged` + poistný `setInterval`. Hlas sa vyberá až pri
+  `speak()`, nie pri mount-e. Priorita: `sk-SK` → `sk` → `cs` → `en`.
+- **Žiadne visiace callbacky.** Front je rekurzívny (`onend` → ďalší úsek), každý beh má
+  vlastný token a všetky `setTimeout` sú evidované v `timersRef`, aby sa dali zrušiť
+  pri unmount-e alebo zmene textu.
 
-Hlas: `sk-SK` (priblíži sa aj `sk-*`, potom `cs`, `en`). Na zariadení bez TTS
-sa komponent vôbec nerenderuje – žiadne mŕtve tlačidlá.
+Hlas: `sk-SK`. Na zariadení bez TTS sa komponent vôbec nerenderuje – žiadne mŕtve tlačidlá.
 
-### 6. Android UI detaily
+### 6. Service Worker
+`public/sw.js` používa `CURRENT_CACHE_NAME`. Pri každej zmene verzie sa hodnota zmení,
+`activate` zo `caches.keys()` zmaže všetky staré cache a `self.clients.claim()` prevezme
+kontrolu nad už otvorenými oknami – bez toho by si používateľ držal starý shell aj po aktualizácii.
+
+### 7. Android UI detaily
 `viewport-fit=cover` + `env(safe-area-inset-*)` pre notch a gesture bar,
 `theme-color` pre status bar, `-webkit-tap-highlight-color: transparent`,
 launcher skratky cez `?view=` parametr v URL.
