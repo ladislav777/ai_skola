@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "test": "node scripts/selftest.mjs",
     "icons": "node scripts/gen-icons.mjs",
     "android:init": "cap init AI škola sk.skai.skola --web-dir=dist",
     "android:add": "cap add android",

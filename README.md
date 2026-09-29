@@ -127,11 +127,20 @@ Inštalácia: `adb install app-debug.apk` alebo prenesením APK na telefón.
 | `npm run dev` | vývojový server |
 | `npm run build` | TypeScript kontrola + produkčný build |
 | `npm run preview` | servírovanie buildu |
+| **`npm test`** | **self-test: 43 kontrol bez testovacích knižníc** |
 | `npm run icons` | znovu vygeneruje všetky ikony a splashe |
 | `npm run android:sync` | build webu + skopírovanie do Android projektu |
 | `npm run android:apk` | zostaví debug APK |
 | `npm run android:open` | otvorí projekt v Android Studio |
 | `npm run android:run` | spustí appku na pripojenom telefóne |
+
+## Testovanie
+
+`npm test` spúšťa `scripts/selftest.mjs` – bez Jestu, Vitestu a ďalších knižníc.
+Overuje dvojfázové delenie textu pre TTS (aj na 3 000 znakov bez jedinej bodky),
+kontrakt service workera, životný cyklus hlasov a integritu obsahu kurzu vrátane
+toho, že **každý zo 572 prekladov má SK aj EN verziu**. TTS sa testuje naozajstne –
+skript cez esbuild (závislosť Vite) načíta `splitForSpeech` priamo zo zdrojáku.
 
 ## Štruktúra
 
