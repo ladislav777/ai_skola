@@ -188,6 +188,10 @@ const T = {
     'You need 2 of 3 correct answers to unlock the next module.',
   ]),
 
+  /* --- Vyhodnotenie odpovede (kvíz) --- */
+  answerRight: t(['✅ Správne!', '✅ Correct!']),
+  answerWrong: t(['❌ Nie je to správne.', '❌ Not quite.']),
+
   /* --- Prompt laboratórium (beží lokálne, bez siete) --- */
   authorCredit: t(['Kurz pripravil', 'Course by']),
   issuedBy: t(['Vydal', 'Issued by']),
@@ -2012,15 +2016,22 @@ function Quiz({
 
       <AnimatePresence>
         {picked !== null && (
-          <motion.p
+          <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="mt-4 rounded-xl border px-4 py-3 text-sm muted"
+            className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
+              picked === current.correct ? 'option-ok' : 'option-bad'
+            }`}
           >
-            <strong className="text-[rgb(var(--text))]">{T.explanation[locale]}: </strong>
-            {current.why[locale]}
-          </motion.p>
+            <p className="font-bold">
+              {picked === current.correct ? T.answerRight[locale] : T.answerWrong[locale]}
+            </p>
+            <p className="mt-1 muted">
+              <strong className="text-[rgb(var(--text))]">{T.explanation[locale]}: </strong>
+              {current.why[locale]}
+            </p>
+          </motion.div>
         )}
       </AnimatePresence>
 

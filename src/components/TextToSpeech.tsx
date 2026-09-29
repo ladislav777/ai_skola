@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
  * Offline hovorená verzia textu.
  * Využíva výhradne natívne Web Speech API (window.speechSynthesis):
  * žiadne knižnice, žiadne sieťové požiadavky, žiadne kľúče.
- * Ak systém TTS nepodporuje, tlačidlá sa nezobrazia.
+ * Ak systém TTS nepodporuje, zostane viditeľná značka s vysvetlením.
  */
 
 type SpeechState = 'idle' | 'speaking' | 'paused'
@@ -21,6 +21,12 @@ const FALLBACK_LANGS = ['sk-SK', 'sk', 'cs-CZ', 'cs', 'en-US', 'en']
 const SENTENCE_LIMIT = 150
 /** Horná hranica pre úsek po delení po slovách. */
 const WORD_LIMIT = 120
+
+/** Vysvetlenie pre značku, keď systém neposkytuje syntézu reči. */
+const UNSUPPORTED_TITLE_SK =
+  'Tento prehliadač nepodporuje syntézu reči. Nainštalujte si hlas v Nastaveniach systému (Slovensko) a stránku obnovte.'
+const UNSUPPORTED_TITLE_EN =
+  'This browser does not support speech synthesis. Install a system voice and reload.'
 
 /**
  * Dvojfázové delenie textu na úseky vhodné pre prehrávanie.
@@ -253,8 +259,24 @@ export default function TextToSpeech({ text, label = 'Prečítať nahlas', varia
     [speakFrom, state, clearTimers],
   )
 
-  // Systém bez TTS alebo prázdny text → tlačidlá vôbec nezobrazujeme
-  if (!supported || chunks.length === 0) return null
+  // Prázdny text → tlačidlá nemajú čo čítať, schováme ich.
+  if (chunks.length === 0) return null
+
+  // Systém bez TTS: tlačidlá NECHÁVAME VIDITEĽNÉ (len nefunkčné) a s vysvetlením.
+  // Predtým tu bolo `return null`, čo v praxi znamenalo, že na telefóne
+  // bez podporovanej syntézy reči hlasový modul úplne zmizol bez varovania.
+  if (!supported) {
+    const sk =
+      typeof navigator !== 'undefined' && navigator.language.toLowerCase().startsWith('sk')
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-xs muted"
+        title={sk ? UNSUPPORTED_TITLE_SK : UNSUPPORTED_TITLE_EN}
+      >
+        {sk ? '🔇 Hlas nedostupný' : '🔇 Voice unavailable'}
+      </span>
+    )
+  }
 
   const active = state !== 'idle'
   const title = voiceName ? `${label} · hlas: ${voiceName}` : label

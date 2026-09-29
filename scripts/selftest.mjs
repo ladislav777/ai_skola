@@ -275,6 +275,46 @@ check('žiadne cesty na Android SDK vo verzovaných súboroch', sdkPaths === '',
 
 
 
+/* ------------------------------- 7. regresie z nahlásených chýb na telefóne -- */
+section('Regresie: hlasový modul a vyhodnotenie kvízu')
+
+const appSource = readFileSync(path.join(ROOT, 'src', 'App.tsx'), 'utf8')
+const ttsSource = readFileSync(path.join(ROOT, 'src', 'components', 'TextToSpeech.tsx'), 'utf8')
+
+// (a) Hlasový modul sa nesmie schovať, keď systém neposkytuje syntézu reči.
+// V praxi to na telefóne znamenalo, že tlačidlá na čítanie úplne zmizli bez varovania.
+const hidesModule = /if \(!supported[\s\S]{0,40}return null/.test(ttsSource)
+check(
+  'TTS sa neskrýva pri chýbajúcej podpore (namiesto tlačidiel značka 🔇)',
+  !hidesModule,
+  hidesModule ? 'stále schováva celý modul' : 'viditeľná značka 🔇',
+)
+check('TTS vysvetľuje, prečo hlas nefunguje', ttsSource.includes('UNSUPPORTED_TITLE_SK'))
+
+// (b) Kvíz musí jednoznačne povedať, či odpoveď bola správna.
+// Bez toho sa feedback zdal vždy potvrdzujúci.
+check('kvíz zobrazuje „Správne!“', appSource.includes('T.answerRight[locale]'))
+check('kvíz zobrazuje „Nie je to správne.“', appSource.includes('T.answerWrong[locale]'))
+check(
+  'o výsledku rozhoduje porovnanie s current.correct',
+  /picked === current\.correct \? T\.answerRight/.test(appSource),
+)
+
+// (c) Preklep v názve úrovne sa nesmie vrátiť do textu.
+// Samotný selftest obsahuje toto slovo ako vzor, preto sa z výsledku vylúči.
+// git grep vrací cesty vždy s lomítkami, preto porovnávame nadol string.
+const SELF = 'scripts/selftest.mjs'
+const badWord = trackedWith('začatočník|začatočník')
+  .split('\n')
+  .filter((f) => f && f !== SELF)
+  .join('\n')
+check('žiadny preklep „začiatočník“ v repozitári', badWord === '', badWord.split('\n').slice(0, 3).join(', '))
+check(
+  'správny tvar „Začiatkár“ je v texte',
+  appSource.includes('Začiatkár') && !appSource.includes('začiatočník'),
+)
+
+
 rmSync(tmp, { recursive: true, force: true })
 
 /* ------------------------------------------------------------- výsledok -- */
