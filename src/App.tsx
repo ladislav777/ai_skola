@@ -270,6 +270,10 @@ const T = {
   chRepeat: t(['Znova zopakovať', 'Repeat it']),
   chHint: t(['Rada', 'Hint']),
   chDoneTotal: t(['Splnené výzvy', 'Completed challenges']),
+  chDoneConfirm: t([
+    '✅ Hotovo! Táto výzva je splnená a zapísaná do vášho postupu.',
+    '✅ Done! This challenge is completed and recorded in your progress.',
+  ]),
 
   finalIntro: t([
     '20 otázok. Na certifikát potrebujete aspoň 16 správnych odpovedí (80 %).',
@@ -2870,6 +2874,21 @@ function ChallengeView({
             {T.chDoneTotal[locale]}: {done.length}/{challenges.length}
           </span>
         </div>
+
+        {/* Viditeľné potvrdenie – bez neho stlačenie tlačidla vyzerá ako „nič sa nestalo“. */}
+        <AnimatePresence>
+          {doneToday && (
+            <motion.p
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="mt-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300"
+              role="status"
+            >
+              {T.chDoneConfirm[locale]}
+            </motion.p>
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
   )

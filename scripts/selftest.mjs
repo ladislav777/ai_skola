@@ -300,7 +300,17 @@ check(
   /picked === current\.correct \? T\.answerRight/.test(appSource),
 )
 
-// (c) Preklep v názve úrovne sa nesmie vrátiť do textu.
+// (c) Denná výzva musí po stlačení tlačidla dať viditeľnú odozvu.
+check(
+  'denná výzva zobrazuje potvrdenie „Hotovo!“',
+  appSource.includes('chDoneConfirm') && appSource.includes('role="status"'),
+)
+check(
+  'tlačidlo výzvy volá onComplete s id úlohy',
+  /onClick=\{\(\) => onComplete\(task\.id\)\}/.test(appSource),
+)
+
+// (d) Preklep v názve úrovne sa nesmie vrátiť do textu.
 // Samotný selftest obsahuje toto slovo ako vzor, preto sa z výsledku vylúči.
 // git grep vrací cesty vždy s lomítkami, preto porovnávame nadol string.
 const SELF = 'scripts/selftest.mjs'
