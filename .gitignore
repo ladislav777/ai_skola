@@ -33,3 +33,6 @@ Thumbs.db
 # Env (projekt kľúče nepotrebuje – len pre istotu)
 .env
 .env.*
+
+# Logy
+*.log
