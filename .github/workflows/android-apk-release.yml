@@ -50,6 +50,10 @@ jobs:
       - name: Verify assets were copied
         run: test -f android/app/src/main/assets/public/index.html
 
+      - name: Verify cordova module was generated
+        # settings.gradle ho includeuje a capacitor.build.gradle robí `apply from:`
+        run: test -f android/capacitor-cordova-android-plugins/cordova.variables.gradle
+
       - name: Make gradlew executable
         # git neuchováva právo +x na Windows checkoute, Gradle by zomrel
         # "Permission denied" bez chyby, ktorá by odhalila príčinu.

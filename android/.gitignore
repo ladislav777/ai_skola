@@ -90,7 +90,9 @@ lint/tmp/
 *.hprof
 
 # Cordova plugins for Capacitor
-capacitor-cordova-android-plugins
+# Priečinok capacitor-cordova-android-plugins JE verzovaný – settings.gradle ho
+# includeuje a capacitor.build.gradle z neho robí `apply from:`, takže v čistom
+# checkout-e bez neho Gradle zomrie. Generuje ho scripts/copy-web-to-android.mjs.
 
 # Copied web assets
 app/src/main/assets/public
