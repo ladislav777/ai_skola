@@ -136,7 +136,7 @@ Ide o debug build podpísaný ladiacim kľúčom – určený na inštaláciu, n
 | `npm run preview` | servírovanie buildu |
 | **`npm test`** | **self-test: 43 kontrol bez testovacích knižníc** |
 | `npm run icons` | znovu vygeneruje všetky ikony a splashe |
-| `npm run android:sync` | build webu + skopírovanie do Android projektu |
+| `npm run android:sync` | build webu + skopírovanie do Android projektu (`scripts/copy-web-to-android.mjs`) |
 | `npm run android:apk` | zostaví debug APK |
 | `npm run android:open` | otvorí projekt v Android Studio |
 | `npm run android:run` | spustí appku na pripojenom telefóne |

@@ -14,7 +14,6 @@
 import { build } from 'esbuild'
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import { userInfo } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -37,7 +36,10 @@ function check(label, condition, detail = '') {
 const section = (title) => console.log(`\n${title}`)
 
 /* ------------------------------------------- 1. načítanie reálneho kódu TTS -- */
-const tmp = mkdtempSync(path.join(tmpdir(), 'ai-skola-test-'))
+// Dočasný priečinok MUSÍ byť vnútri projektu: bundle necháva `react` a
+// `react-dom` externé, takže Node ho musí vedieť doplniť z node_modules/.
+// V systémovom tmpdir by riešenie zlyhalo (ERR_MODULE_NOT_FOUND).
+const tmp = mkdtempSync(path.join(ROOT, '.selftest-'))
 const entry = path.join(tmp, 'entry.ts')
 const bundle = path.join(tmp, 'bundle.mjs')
 

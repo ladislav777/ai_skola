@@ -42,10 +42,8 @@ jobs:
         run: npm exec vite build
 
       - name: Copy web into Android project
-        # `cap copy` namiesto `cap sync` – sync spúšťa aj `cap update`, ktorý na
-        # Linuxe končí fatálnou chybou v @ionic/utils-process (process.kill).
-        # capacitor.build.gradle aj settings.gradle sú už v repozitárii.
-        run: npx cap copy android
+        # Bez Capacitor CLI – `cap copy` v CI zlyháva (pozri scripts/copy-web-to-android.mjs).
+        run: node scripts/copy-web-to-android.mjs
 
       - name: Verify assets were copied
         run: test -f android/app/src/main/assets/public/index.html

@@ -11,8 +11,8 @@
     "icons": "node scripts/gen-icons.mjs",
     "android:init": "cap init AI škola sk.skai.skola --web-dir=dist",
     "android:add": "cap add android",
-    "android:copy": "cap copy android",
-    "android:sync": "npm run build && cap copy android",
+    "android:copy": "node scripts/copy-web-to-android.mjs",
+    "android:sync": "npm run build && node scripts/copy-web-to-android.mjs",
     "android:open": "cap open android",
     "android:apk": "npm run android:sync && cd android && gradlew assembleDebug",
     "android:run": "npm run android:sync && cap run android"
