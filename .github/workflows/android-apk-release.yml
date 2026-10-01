@@ -1,0 +1,70 @@
+name: Android APK release
+
+# APK sa zostaví z repozitára a vloží do GitHub Release.
+# Spustí sa pushnutím tagu (napr. git push origin v1.0.0) alebo ručne cez Actions tab.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web and sync into Android project
+        run: npm run android:sync
+
+      - name: Assemble debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Test that APK exists
+        run: test -f app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Create GitHub Release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+          body: |
+            ## AI škola – Android APK
+
+            Inštalácia: stiahni `app-debug.apk`, prenes ho na telefón a otvor
+            (na telefóne povol inštaláciu z neznámych zdrojov).
+            Alebo cez ADB: `adb install app-debug.apk`.
+
+            ### Poznámky k APK
+            * ide o **debug** build – podpísaný lokálnym ladiacim kľúčom,
+              nie je to balík pre Google Play,
+            * Android 7.0+ ,
+            * na Android 13+ povol inštaláciu z tohto zdroja pri otvorení súboru.
+
+            ### Zdrojový kód
+            https://github.com/ladislav777/ai_skola

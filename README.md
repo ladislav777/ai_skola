@@ -113,12 +113,19 @@ npm run dev        # http://localhost:5173
 3. ⋮ → **Pridať na domovskú obrazovku**
 
 ### Ako APK
+
+**Stiahnutie:** [GitHub Releases](https://github.com/ladislav777/ai_skola/releases) →
+posledný release → `app-debug.apk`.
+Release zostavuje workflow `.github/workflows/android-apk-release.yml` pri pushnutí tagu
+(`git push origin v1.0.0`) alebo ručne cez záložku *Actions*.
+
 ```bash
 npm run android:apk
 # → android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 Inštalácia: `adb install app-debug.apk` alebo prenesením APK na telefón.
+Ide o debug build podpísaný ladiacim kľúčom – určený na inštaláciu, nie do Play Store.
 
 ### Príkazy
 
