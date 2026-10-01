@@ -35,8 +35,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build web and sync into Android project
-        run: npm run android:sync
+      - name: Type check
+        run: npm exec tsc -- --noEmit
+
+      - name: Build web
+        run: npm exec vite build
+
+      - name: Sync into Android project
+        run: npm exec cap sync android
 
       - name: Assemble debug APK
         working-directory: android
